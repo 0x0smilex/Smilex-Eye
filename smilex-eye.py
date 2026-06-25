@@ -6,211 +6,226 @@ import sys
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
+from rich.prompt import Prompt
 
 # --- Configuration ---
 KEY_FILE = os.path.expanduser("~/.smilex_key")
 console = Console()
 
-# --- THE COMPLETE 67-FILTER DATABASE (Tier-Mapped) ---
+# --- FILTER DATABASE ---
 # Tiers: 0=Free, 1=Membership, 2=Small Business, 3=Corporate
 FILTER_GROUPS = {
     "General": [
         ["after", "after:01/01/2026", "Results after a date (dd/mm/yyyy)", 0],
         ["asn", "asn:AS15169", "Autonomous System Number", 0],
         ["before", "before:01/01/2026", "Results before a date (dd/mm/yyyy)", 0],
-        ["category", "category:ics", "Predefined categories (ics, malware)", 0],
+        ["category", "category:ics", "Predefined categories", 0],
         ["city", "city:London", "City name", 0],
         ["country", "country:AE", "2-letter country code", 0],
-        ["device", "device:webcam", "Type of device", 0],
-        ["geo", "geo:25.2,55.3", "Search by latitude and longitude", 0],
-        ["hash", "hash:-12345", "Banner data hash (integer)", 0],
-        ["hostname", "hostname:edu", "Search by hostname/domain suffix", 0],
-        ["ip", "ip:1.1.1.1", "Search for a specific IP", 0],
-        ["isp", "isp:Comcast", "Internet Service Provider", 0],
-        ["net", "net:192.168.1.0/24", "Network range (CIDR)", 0],
-        ["org", "org:Microsoft", "Organization owning the IP", 0],
-        ["os", "os:Windows", "Operating System", 0],
-        ["port", "port:445", "Specific port number", 0],
-        ["product", "product:nginx", "Software brand/name", 0],
-        ["version", "version:1.18", "Software version", 0],
-        ["state", "state:NY", "State or province", 0],
-        ["postal", "postal:90210", "Postal/Zip code (US)", 0]
+        ["device_type", "device:webcam", "Device type", 0],
+        ["geo", "geo:25.2,55.3", "Latitude/longitude search", 0],
+        ["hash", "hash:-12345", "Banner hash", 0],
+        ["hostname", "hostname:edu", "Hostname search", 0],
+        ["ip", "ip:1.1.1.1", "Specific IP", 0],
+        ["isp", "isp:Comcast", "ISP filter", 0],
+        ["net", "net:192.168.1.0/24", "CIDR network", 0],
+        ["org", "org:Microsoft", "Organization", 0],
+        ["os", "os:Windows", "Operating system", 0],
+        ["port", "port:445", "Port number", 0],
+        ["product", "product:nginx", "Product name", 0],
+        ["version", "version:1.18", "Version filter", 0],
+        ["state", "state:NY", "State filter", 0],
+        ["postal", "postal:90210", "Postal code", 0],
+        ["has_ipv6", "has_ipv6:true", "IPv6 hosts", 0],
+        ["tag", "tag:ics", "Shodan tags", 0]
     ],
+
     "Web (HTTP)": [
-        ["http.component", "http.component:wordpress", "Web technology/framework", 1],
+        ["http.component", "http.component:wordpress", "Web tech", 1],
         ["http.component_category", "http.component_category:CMS", "Component category", 1],
-        ["http.dom_hash", "http.dom_hash:54321", "Hash of the website DOM", 1],
-        ["http.favicon.hash", "http.favicon.hash:1234", "Favicon MMH3 hash", 1],
-        ["http.headers_hash", "http.headers_hash:4321", "Hash of HTTP headers", 1],
-        ["http.html", "http.html:login", "Search text inside HTML body", 1],
-        ["http.html_hash", "http.html_hash:9876", "Hash of HTML body", 1],
-        ["http.robots_hash", "http.robots_hash:1122", "Hash of robots.txt", 1],
-        ["http.securitytxt", "http.securitytxt:contact", "Search security.txt", 1],
-        ["http.server_header", "http.server_header:apache", "Specific server header", 1],
-        ["http.status", "http.status:200", "HTTP response status code", 1],
-        ["http.title", "http.title:dashboard", "Text in <title> tag", 1],
-        ["http.waf", "http.waf:cloudflare", "WAF brand", 1]
+        ["http.dom_hash", "http.dom_hash:54321", "DOM hash", 1],
+        ["http.favicon.hash", "http.favicon.hash:1234", "Favicon hash", 1],
+        ["http.headers_hash", "http.headers_hash:4321", "Headers hash", 1],
+        ["http.html", "http.html:login", "HTML search", 1],
+        ["http.html_hash", "http.html_hash:9876", "HTML hash", 1],
+        ["http.robots_hash", "http.robots_hash:1122", "Robots hash", 1],
+        ["http.securitytxt", "http.securitytxt:contact", "Security.txt", 1],
+        ["http.server_header", "http.server_header:apache", "Server header", 1],
+        ["http.status", "http.status:200", "HTTP status", 1],
+        ["http.title", "http.title:dashboard", "Title filter", 1],
+        ["http.waf", "http.waf:cloudflare", "WAF detection", 1],
+        ["http.body", "http.body:admin", "Body search", 1],
+        ["http.response", "http.response:200", "Response filter", 1],
+        ["http.redirect", "http.redirect:true", "Redirect filter", 1],
+        ["http.host", "http.host:example.com", "Host header", 1]
     ],
+
     "SSL / Certificates": [
-        ["ssl", "ssl:expired:true", "Search all SSL data", 1],
-        ["ssl.alpn", "ssl.alpn:h2", "Application protocol (h2, spdy)", 1],
-        ["ssl.cert.alg", "ssl.cert.alg:sha256", "Cert signature algorithm", 1],
-        ["ssl.cert.expired", "ssl.cert.expired:true", "Find expired certificates", 1],
-        ["ssl.cert.extension", "ssl.cert.extension:ocsp", "Names of cert extensions", 1],
-        ["ssl.cert.issuer.cn", "ssl.cert.issuer.cn:R3", "CA Common Name", 1],
-        ["ssl.cert.pubkey.bits", "ssl.cert.pubkey.bits:2048", "Pubkey bit length", 1],
-        ["ssl.cert.pubkey.type", "ssl.cert.pubkey.type:rsa", "Public key type", 1],
-        ["ssl.cert.serial", "ssl.cert.serial:12345", "Certificate serial number", 1],
-        ["ssl.cert.subject.cn", "ssl.cert.subject.cn:google", "Cert Common Name", 1],
-        ["ssl.chain_count", "ssl.chain_count:3", "Certs in chain", 1],
-        ["ssl.version", "ssl.version:tlsv1.3", "Specific SSL/TLS version", 1],
-        ["has_ssl", "has_ssl:true", "Hosts with SSL/TLS enabled", 0]
+        ["ssl.alpn", "ssl.alpn:h2", "ALPN protocol", 1],
+        ["ssl.cert.alg", "ssl.cert.alg:sha256", "Cert algorithm", 1],
+        ["ssl.cert.expired", "ssl.cert.expired:true", "Expired certs", 1],
+        ["ssl.cert.extension", "ssl.cert.extension:ocsp", "Extensions", 1],
+        ["ssl.cert.issuer.cn", "ssl.cert.issuer.cn:R3", "Issuer CN", 1],
+        ["ssl.cert.pubkey.bits", "ssl.cert.pubkey.bits:2048", "Key size", 1],
+        ["ssl.cert.pubkey.type", "ssl.cert.pubkey.type:rsa", "Key type", 1],
+        ["ssl.cert.serial", "ssl.cert.serial:12345", "Serial", 1],
+        ["ssl.cert.subject.cn", "ssl.cert.subject.cn:google", "Subject CN", 1],
+        ["ssl.chain_count", "ssl.chain_count:3", "Chain count", 1],
+        ["ssl.version", "ssl.version:tlsv1.3", "TLS version", 1],
+        ["has_ssl", "has_ssl:true", "SSL enabled", 0],
+        ["ssl.jarm", "ssl.jarm:29d29", "JARM fingerprint", 1],
+        ["ssl.cipher", "ssl.cipher:TLS_AES", "Cipher suite", 1],
+        ["ssl.cert.fingerprint", "ssl.cert.fingerprint:abc123", "Fingerprint", 1],
+        ["ssl.cert.issuer.o", "ssl.cert.issuer.o:Lets Encrypt", "Issuer org", 1],
+        ["ssl.cert.subject.o", "ssl.cert.subject.o:Google", "Subject org", 1],
+        ["ssl.cert.subject.alt_name", "ssl.cert.subject.alt_name:example.com", "SAN", 1]
     ],
+
     "Security & Vulns": [
-        ["has_vuln", "has_vuln:true", "Find hosts with confirmed CVEs", 1],
-        ["vuln", "vuln:CVE-2019-0708", "Search by specific CVE ID", 2],
-        ["has_screenshot", "has_screenshot:true", "Hosts with images", 1],
-        ["screenshot.label", "screenshot.label:ics", "Type of image", 1],
+        ["has_vuln", "has_vuln:true", "Has CVEs", 1],
+        ["vuln", "vuln:CVE-2019-0708", "CVE search", 2],
+        ["cve", "cve:CVE-2024-1234", "Direct CVE", 2],
+        ["cpe", "cpe:cpe:/a:apache:http_server", "CPE match", 2],
+        ["vuln.verified", "vuln.verified:true", "Verified vulns", 2],
+        ["has_screenshot", "has_screenshot:true", "Screenshots", 1],
+        ["screenshot.label", "screenshot.label:ics", "Screenshot type", 1],
         ["screenshot.hash", "screenshot.hash:1234", "Screenshot hash", 1]
     ],
+
     "Cloud & Infrastructure": [
-        ["cloud.provider", "cloud.provider:aws", "Cloud host (aws, azure)", 1],
-        ["cloud.region", "cloud.region:us-east-1", "Cloud data center region", 1],
-        ["cloud.service", "cloud.service:EC2", "Specific cloud service name", 1],
-        ["domain", "domain:example.com", "Search all subdomains/records", 1]
+        ["cloud.provider", "cloud.provider:aws", "Cloud provider", 1],
+        ["cloud.region", "cloud.region:us-east-1", "Region", 1],
+        ["cloud.service", "cloud.service:EC2", "Service", 1],
+        ["domain", "domain:example.com", "Domain search", 1]
     ],
+
     "Specialized Protocols": [
-        ["ssh.hassh", "ssh.hassh:12345", "SSH client fingerprint", 1],
-        ["ssh.type", "ssh.type:OpenSSH", "SSH server software type", 1],
-        ["telnet.do", "telnet.do:echo", "Telnet 'Do' options", 1],
-        ["telnet.dont", "telnet.dont:echo", "Telnet 'Dont' options", 1],
-        ["telnet.option", "telnet.option:echo", "General Telnet options", 1],
-        ["bitcoin.ip", "bitcoin.ip:1.2.3.4", "IP of a Bitcoin node", 1],
-        ["bitcoin.version", "bitcoin.version:70015", "Bitcoin protocol version", 1],
-        ["ntp.ip", "ntp.ip:1.1.1.1", "IPs in NTP monlist", 1],
-        ["ntp.more", "ntp.more:true", "Extra data in NTP monlist", 1],
-        ["snmp.contact", "snmp.contact:admin", "SNMP contact string", 1],
-        ["snmp.location", "snmp.location:DC1", "SNMP location string", 1],
-        ["snmp.name", "snmp.name:router", "SNMP name string", 1]
+        ["ssh.hassh", "ssh.hassh:12345", "SSH fingerprint", 1],
+        ["ssh.type", "ssh.type:OpenSSH", "SSH type", 1],
+        ["telnet.do", "telnet.do:echo", "Telnet DO", 1],
+        ["telnet.dont", "telnet.dont:echo", "Telnet DONT", 1],
+        ["telnet.option", "telnet.option:echo", "Telnet option", 1],
+        ["bitcoin.ip", "bitcoin.ip:1.2.3.4", "Bitcoin IP", 1],
+        ["bitcoin.version", "bitcoin.version:70015", "Bitcoin version", 1],
+        ["ntp.ip", "ntp.ip:1.1.1.1", "NTP IP", 1],
+        ["ntp.more", "ntp.more:true", "NTP extra", 1],
+        ["snmp.contact", "snmp.contact:admin", "SNMP contact", 1],
+        ["snmp.location", "snmp.location:DC1", "SNMP location", 1],
+        ["snmp.name", "snmp.name:router", "SNMP name", 1],
+        ["banner", "banner:apache", "Raw banner", 1],
+        ["data", "data:login", "Payload search", 1],
+        ["transport", "transport:tcp", "Transport", 1]
     ]
 }
 
-BANNER = r"""[bold cyan]
-   _____           _ _             ______             
-  / ___/____ ___  (_) /__  _  __  / ____/_  _____     
-  \__ \/ __ `__ \/ / / _ \| |/_/ / __/ / / / / _ \    
- ___/ / / / / / / / /  __/>  <  / /___/ /_/ /  __/    
-/____/_/ /_/ /_/_/_/\___/_/|_| /_____/\__, /\___/     
-                                     /____/           [/][bold white]
-          >> [bold yellow]SMILEX-EYE ULTIMATE[/] v20.0 <<
-          >> [bold green]CREATED BY: 0x0smilex[/] <<[/]
+# --- BANNER ---
+BANNER = r"""
+   _____           _ _             ______
+  / ___/____ ___  (_) /__  _  __  / ____/_  _____
+  \__ \/ __ `__ \/ / / _ \| |/_/ / __/ / / / / _ \
+ ___/ / / / / / / / /  __/>  <  / /___/ /_/ /  __/
+/____/_/ /_/ /_/_/_/\___/_/|_| /_____/\__, /\___/
+                                     /____/
+          >> SMILEX-EYE PRO v21.0 <<
+          >> CREATED BY: 0x0smilex <<
 """
 
+# --- API KEY ---
 def get_api_key():
     if os.path.exists(KEY_FILE):
-        with open(KEY_FILE, 'r') as f: return f.read().strip()
-    console.print(Panel("[bold yellow]Setup Mode[/]\nEnter your Shodan API Key.", title="SMILEX-EYE"))
+        return open(KEY_FILE).read().strip()
+
+    console.print(Panel("[yellow]Setup Mode[/]\nEnter Shodan API Key"))
     key = input("> ").strip()
     if key:
-        with open(KEY_FILE, 'w') as f: f.write(key)
+        open(KEY_FILE, "w").write(key)
         return key
     sys.exit(1)
 
-def get_user_tier(api):
-    try:
-        info = api.info()
-        plan = info.get('plan', 'free').lower()
-        if any(x in plan for x in ['corporate', 'enterprise']): return 3, plan
-        if 'small-business' in plan: return 2, plan
-        if any(x in plan for x in ['membership', 'academic', 'dev']): return 1, plan
-        return 0, plan
-    except: return 0, "free"
+# --- FILTER SEARCH FEATURE ---
+def search_filters(keyword):
+    keyword = keyword.lower()
+    results = []
 
+    for cat, items in FILTER_GROUPS.items():
+        for f in items:
+            if keyword in f[0].lower() or keyword in f[1].lower() or keyword in f[2].lower():
+                results.append((cat, f))
+
+    table = Table(title=f"Filter Search: {keyword}", show_lines=True)
+    table.add_column("Category", style="cyan")
+    table.add_column("Filter", style="yellow")
+    table.add_column("Example", style="green")
+    table.add_column("Description", style="white")
+    table.add_column("Tier", style="magenta")
+
+    for cat, f in results[:50]:
+        table.add_row(cat, f[0], f[1], f[2], str(f[3]))
+
+    console.print(table)
+
+# --- LIST FILTERS ---
 def list_filters(api, category=None):
-    tier_level, plan_name = get_user_tier(api)
-    console.print(f"[*] Shodan Plan: [bold magenta]{plan_name.upper()}[/] | Showing authorized filters:")
-    
+    tier_level, plan = 0, "free"
+
+    console.print(f"[magenta]Shodan Plan:[/] {plan}")
+
     if not category or category.lower() == "all":
-        table = Table(title="Available Categories", header_style="bold magenta")
-        table.add_column("Category Name", style="cyan")
-        table.add_column("Filters Inside", style="white")
+        table = Table(title="Available Categories")
+        table.add_column("Category")
+        table.add_column("Available Filters")
+
         for cat, items in FILTER_GROUPS.items():
             unlocked = [f for f in items if f[3] <= tier_level]
-            if unlocked: table.add_row(cat.lower(), str(len(unlocked)))
+            if unlocked:
+                table.add_row(cat, str(len(unlocked)))
+
         console.print(table)
-    else:
-        key = next((k for k in FILTER_GROUPS.keys() if k.lower().startswith(category.lower())), None)
-        if key:
-            table = Table(title=f"Filters: {key.upper()}", show_lines=True)
-            table.add_column("Filter", style="bold yellow")
-            table.add_column("Example", style="cyan")
-            table.add_column("Description", style="white")
-            for f in FILTER_GROUPS[key]:
-                if f[3] <= tier_level: table.add_row(f[0], f[1], f[2])
-            console.print(table)
 
-def analyze_ip(api, ip):
-    try:
-        host = api.host(ip)
-        tags = host.get('tags', [])
-        if 'honeypot' in tags: return "[bold red]HONEYPOT[/]"
-        keywords = ["honeypot", "dionaea", "cowrie", "conpot"]
-        for b in host.get('data', []):
-            if any(k in str(b.get('data','')).lower() for k in keywords): return "[bold yellow]SUSPICIOUS[/]"
-        return "[bold green]CLEAN[/]"
-    except: return "[dim]Unknown[/]"
-
+# --- MAIN ---
 def main():
     console.print(BANNER)
-    parser = argparse.ArgumentParser(
-        prog="smilex-eye",
-        usage="smilex-eye [-q QUERY] [-l LIMIT] [-c CHECK] [--honeypot] [--save SAVE] [--list [LIST]] [-h]",
-        add_help=False
-    )
-    
-    mining = parser.add_argument_group('🛠️  MINING')
-    mining.add_argument("-q", "--query", help="Search query")
-    mining.add_argument("-l", "--limit", type=int, default=15, help="Result limit")
-    
-    hunting = parser.add_argument_group('🎯  HUNTING')
-    hunting.add_argument("-c", "--check", help="Check 1 IP")
-    hunting.add_argument("--honeypot", action="store_true", help="Analyze results for deception")
-    
-    export = parser.add_argument_group('💾  EXPORT')
-    export.add_argument("--save", help="Save IPs to .txt")
 
-    ref = parser.add_argument_group('📚  REF')
-    ref.add_argument("--list", nargs='?', const='all', help="List filters for your plan")
-    ref.add_argument("-h", "--help", action="help", help="Show this help message")
-    
+    parser = argparse.ArgumentParser(add_help=False)
+
+    mining = parser.add_argument_group("MINING")
+    mining.add_argument("-q", "--query")
+    mining.add_argument("-l", "--limit", type=int, default=15)
+
+    ref = parser.add_argument_group("REF")
+    ref.add_argument("--list", nargs="?", const="all")
+    ref.add_argument("--search-filter")
+
     args = parser.parse_args()
+
     api = shodan.Shodan(get_api_key())
 
-    if args.list: list_filters(api, args.list); return
-    if args.check:
-        console.print(f"[*] Analyzing: {args.check}...")
-        console.print(Panel(f"Verdict: {analyze_ip(api, args.check)}", title=args.check)); return
+    if args.search_filter:
+        search_filters(args.search_filter)
+        return
+
+    if args.list:
+        list_filters(api, args.list)
+        return
+
     if not args.query:
-        console.print("[dim]Use -q to search. Example: smilex-eye -q 'port:21'[/]"); return
+        console.print("[dim]Use -q 'query'[/]")
+        return
 
     try:
         res = api.search(args.query, limit=args.limit)
-        table = Table(title=f"Results for {args.query}", show_lines=True)
-        table.add_column("IP:PORT", style="white")
-        table.add_column("ORGANIZATION", style="green")
-        if args.honeypot: table.add_column("DECEPTION", style="bold magenta")
 
-        for m in res['matches']:
-            row = [f"{m['ip_str']}:{m['port']}", m.get('org', 'N/A')[:20]]
-            if args.honeypot: row.append(analyze_ip(api, m['ip_str']))
-            table.add_row(*row)
-            
+        table = Table(title=f"Results for {args.query}")
+        table.add_column("IP:PORT")
+        table.add_column("ORG")
+
+        for m in res["matches"]:
+            table.add_row(f"{m['ip_str']}:{m['port']}", m.get("org", "N/A")[:20])
+
         console.print(table)
-        if args.save:
-            with open(args.save, "w") as f:
-                for m in res['matches']: f.write(f"{m['ip_str']}\n")
-            console.print(f"[bold green][+][/] Saved to {args.save}")
-    except Exception as ex: console.print(f"[bold red]Error:[/] {ex}")
+
+    except Exception as e:
+        console.print(f"[red]Error:[/] {e}")
 
 if __name__ == "__main__":
     main()
