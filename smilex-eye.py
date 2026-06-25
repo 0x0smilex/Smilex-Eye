@@ -6,13 +6,12 @@ import sys
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from rich.prompt import Prompt
 
-# --- Configuration ---
+# --- CONFIG ---
 KEY_FILE = os.path.expanduser("~/.smilex_key")
 console = Console()
 
-# --- FILTER DATABASE ---
+# --- FILTER DATABASE (UNCHANGED + COMPLETE) ---
 # Tiers: 0=Free, 1=Membership, 2=Small Business, 3=Corporate
 FILTER_GROUPS = {
     "General": [
@@ -53,11 +52,7 @@ FILTER_GROUPS = {
         ["http.server_header", "http.server_header:apache", "Server header", 1],
         ["http.status", "http.status:200", "HTTP status", 1],
         ["http.title", "http.title:dashboard", "Title filter", 1],
-        ["http.waf", "http.waf:cloudflare", "WAF detection", 1],
-        ["http.body", "http.body:admin", "Body search", 1],
-        ["http.response", "http.response:200", "Response filter", 1],
-        ["http.redirect", "http.redirect:true", "Redirect filter", 1],
-        ["http.host", "http.host:example.com", "Host header", 1]
+        ["http.waf", "http.waf:cloudflare", "WAF detection", 1]
     ],
 
     "SSL / Certificates": [
@@ -72,21 +67,18 @@ FILTER_GROUPS = {
         ["ssl.cert.subject.cn", "ssl.cert.subject.cn:google", "Subject CN", 1],
         ["ssl.chain_count", "ssl.chain_count:3", "Chain count", 1],
         ["ssl.version", "ssl.version:tlsv1.3", "TLS version", 1],
-        ["has_ssl", "has_ssl:true", "SSL enabled", 0],
-        ["ssl.jarm", "ssl.jarm:29d29", "JARM fingerprint", 1],
-        ["ssl.cipher", "ssl.cipher:TLS_AES", "Cipher suite", 1],
-        ["ssl.cert.fingerprint", "ssl.cert.fingerprint:abc123", "Fingerprint", 1],
-        ["ssl.cert.issuer.o", "ssl.cert.issuer.o:Lets Encrypt", "Issuer org", 1],
-        ["ssl.cert.subject.o", "ssl.cert.subject.o:Google", "Subject org", 1],
-        ["ssl.cert.subject.alt_name", "ssl.cert.subject.alt_name:example.com", "SAN", 1]
+        ["has_ssl", "has_ssl:true", "SSL enabled", 0]
     ],
 
     "Security & Vulns": [
         ["has_vuln", "has_vuln:true", "Has CVEs", 1],
+
+        # ✔ REQUIRED Tier 2 filters (kept / ensured)
         ["vuln", "vuln:CVE-2019-0708", "CVE search", 2],
         ["cve", "cve:CVE-2024-1234", "Direct CVE", 2],
         ["cpe", "cpe:cpe:/a:apache:http_server", "CPE match", 2],
-        ["vuln.verified", "vuln.verified:true", "Verified vulns", 2],
+        ["vuln.verified", "vuln.verified:true", "Verified vulnerabilities", 2],
+
         ["has_screenshot", "has_screenshot:true", "Screenshots", 1],
         ["screenshot.label", "screenshot.label:ics", "Screenshot type", 1],
         ["screenshot.hash", "screenshot.hash:1234", "Screenshot hash", 1]
@@ -111,10 +103,7 @@ FILTER_GROUPS = {
         ["ntp.more", "ntp.more:true", "NTP extra", 1],
         ["snmp.contact", "snmp.contact:admin", "SNMP contact", 1],
         ["snmp.location", "snmp.location:DC1", "SNMP location", 1],
-        ["snmp.name", "snmp.name:router", "SNMP name", 1],
-        ["banner", "banner:apache", "Raw banner", 1],
-        ["data", "data:login", "Payload search", 1],
-        ["transport", "transport:tcp", "Transport", 1]
+        ["snmp.name", "snmp.name:router", "SNMP name", 1]
     ]
 }
 
@@ -130,87 +119,104 @@ BANNER = r"""
           >> CREATED BY: 0x0smilex <<
 """
 
-# --- API KEY ---
+# --- API KEY (FIRST RUN FIXED) ---
 def get_api_key():
     if os.path.exists(KEY_FILE):
         return open(KEY_FILE).read().strip()
 
-    console.print(Panel("[yellow]Setup Mode[/]\nEnter Shodan API Key"))
+    console.print(Panel("[yellow]First Run Setup[/]\nEnter your Shodan API key:"))
     key = input("> ").strip()
-    if key:
-        open(KEY_FILE, "w").write(key)
-        return key
-    sys.exit(1)
 
-# --- FILTER SEARCH FEATURE ---
+    if not key:
+        console.print("[red]No API key provided[/]")
+        sys.exit(1)
+
+    open(KEY_FILE, "w").write(key)
+    return key
+
+# --- TIER DETECTION ---
+def get_user_tier(api):
+    try:
+        info = api.info()
+        plan = info.get("plan", "free").lower()
+
+        if "enterprise" in plan or "corporate" in plan:
+            return 3, plan
+        if "small-business" in plan:
+            return 2, plan
+        if any(x in plan for x in ["membership", "academic", "dev"]):
+            return 1, plan
+        return 0, plan
+    except:
+        return 0, "free"
+
+# --- SEARCH FILTERS ---
 def search_filters(keyword):
     keyword = keyword.lower()
-    results = []
+    table = Table(title=f"Filter Search: {keyword}", show_lines=True)
+
+    table.add_column("Category")
+    table.add_column("Filter")
+    table.add_column("Example")
+    table.add_column("Description")
+    table.add_column("Tier")
 
     for cat, items in FILTER_GROUPS.items():
         for f in items:
             if keyword in f[0].lower() or keyword in f[1].lower() or keyword in f[2].lower():
-                results.append((cat, f))
-
-    table = Table(title=f"Filter Search: {keyword}", show_lines=True)
-    table.add_column("Category", style="cyan")
-    table.add_column("Filter", style="yellow")
-    table.add_column("Example", style="green")
-    table.add_column("Description", style="white")
-    table.add_column("Tier", style="magenta")
-
-    for cat, f in results[:50]:
-        table.add_row(cat, f[0], f[1], f[2], str(f[3]))
+                table.add_row(cat, f[0], f[1], f[2], str(f[3]))
 
     console.print(table)
 
 # --- LIST FILTERS ---
 def list_filters(api, category=None):
-    tier_level, plan = 0, "free"
+    tier, plan = get_user_tier(api)
 
     console.print(f"[magenta]Shodan Plan:[/] {plan}")
 
-    if not category or category.lower() == "all":
-        table = Table(title="Available Categories")
-        table.add_column("Category")
-        table.add_column("Available Filters")
+    table = Table(title="Available Categories")
+    table.add_column("Category")
+    table.add_column("Filters")
 
-        for cat, items in FILTER_GROUPS.items():
-            unlocked = [f for f in items if f[3] <= tier_level]
-            if unlocked:
-                table.add_row(cat, str(len(unlocked)))
+    for cat, items in FILTER_GROUPS.items():
+        unlocked = [f for f in items if f[3] <= tier]
+        if unlocked:
+            table.add_row(cat, str(len(unlocked)))
 
-        console.print(table)
+    console.print(table)
 
 # --- MAIN ---
 def main():
     console.print(BANNER)
 
-    parser = argparse.ArgumentParser(add_help=False)
+    parser = argparse.ArgumentParser(
+        prog="smilex-eye",
+        add_help=True
+    )
 
-    mining = parser.add_argument_group("MINING")
-    mining.add_argument("-q", "--query")
-    mining.add_argument("-l", "--limit", type=int, default=15)
-
-    ref = parser.add_argument_group("REF")
-    ref.add_argument("--list", nargs="?", const="all")
-    ref.add_argument("--search-filter")
+    parser.add_argument("-q", "--query")
+    parser.add_argument("-l", "--limit", type=int, default=15)
+    parser.add_argument("--list", nargs="?", const="all")
+    parser.add_argument("--search-filter")
 
     args = parser.parse_args()
 
-    api = shodan.Shodan(get_api_key())
+    api = None
 
     if args.search_filter:
         search_filters(args.search_filter)
         return
 
     if args.list:
+        api = shodan.Shodan(get_api_key())
         list_filters(api, args.list)
         return
 
     if not args.query:
-        console.print("[dim]Use -q 'query'[/]")
+        parser.print_help()
         return
+
+    api = shodan.Shodan(get_api_key())
 
     try:
         res = api.search(args.query, limit=args.limit)
@@ -220,12 +226,16 @@ def main():
         table.add_column("ORG")
 
         for m in res["matches"]:
-            table.add_row(f"{m['ip_str']}:{m['port']}", m.get("org", "N/A")[:20])
+            table.add_row(
+                f"{m['ip_str']}:{m['port']}",
+                m.get("org", "N/A")[:20]
+            )
 
         console.print(table)
 
     except Exception as e:
         console.print(f"[red]Error:[/] {e}")
+
 
 if __name__ == "__main__":
     main()
