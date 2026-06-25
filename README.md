@@ -1,4 +1,4 @@
-# 👁️ Smilex-Eye v20.0
+# 👁️ Smilex-Eye v21.0
 
 **Developed by:** `0x0smilex`
 
@@ -28,7 +28,13 @@ It features a **dynamic filter engine** that automatically adapts to your **Shod
 ## 📥 Quick Setup, Installation & Global Execution
 
 ```bash
-git clone https://github.com/0x0smilex/smilex-eye.git && cd smilex-eye && pip install -r requirements.txt --break-system-packages && mv smilex-eye.py smilex-eye && chmod +x smilex-eye && sudo mv smilex-eye /usr/local/bin/
+git clone https://github.com/0x0smilex/smilex-eye.git && \
+cd smilex-eye && \
+pip install -r requirements.txt --break-system-packages && \
+mv smilex-eye.py smilex-eye && \
+chmod +x smilex-eye && \
+sudo mv smilex-eye /usr/local/bin/
+
 The --break-system-packages flag is used to bypass environment restrictions on modern Linux systems.
 
 IMPORTANT:
